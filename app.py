@@ -5,11 +5,11 @@ st.set_page_config(page_title="ENKA Olimpiyat Sistemi", layout="wide")
 
 # --- ENKA BİRLEŞİK SINIF YAPISI ---
 ENKA_SINIFLAR = [
-    "Hazırlık AB", "Hazırlık CD", "Hazırlık EF", "Hazırlık GH",
+    "Hazırlık A", "Hazırlık B", 
     "9AB", "9CD", "9EF", "9GH", "9FEN",
     "10AB", "10CD", "10EF", "10GH", "10FEN",
     "11AB", "11CD", "11EF", "11GH", "11FEN",
-    "12AB", "12CD", "12EF", "12GH"
+    "12A", "12B", "12C","12D","12E","12F","12G","12H"
 ]
 
 # --- VERİ YÖNETİMİ ---
@@ -84,8 +84,8 @@ else:
     st.sidebar.info(f"👤 {u_data['ad']}\n📅 {datetime.now().strftime('%d.%m.%Y')}")
     
     with st.sidebar.expander("⚙️ Hesap Ayarları"):
-        yeni_kullanici_adi = st.text_input("Yeni Kullanıcı Adı", value=u_id)
-        yeni_sifre_giris = st.text_input("Yeni Şifre", type="password")
+        yeni_kullanici_adi = st.text_input("Yeni Kullanıcı Adı (Okul No)", value=u_id)
+        yeni_sifre_giris = st.text_input("Yeni Şifre", type="password", value=u_data["pass"])
         if st.button("Güncelle"):
             if yeni_kullanici_adi != u_id:
                 st.session_state.users[yeni_kullanici_adi] = st.session_state.users.pop(u_id)
@@ -101,8 +101,6 @@ else:
     # --- ÖĞRENCİ PANELİ ---
     if u_data["role"] == "Öğrenci":
         st.header("📋 Olimpiyat İzin Talebi")
-        
-        # TEST İÇİN TAKVİM ÖZELLİĞİ
         secili_tarih_ogrenci = st.date_input("İzin İstediğiniz Tarihi Seçin:", datetime.now())
         secili_gun_ismi = gun_ismini_bul(secili_tarih_ogrenci)
         formatli_tarih_ogrenci = secili_tarih_ogrenci.strftime("%d/%m/%Y")
@@ -122,22 +120,19 @@ else:
         else:
             secili_nolar = st.multiselect("Hangi Ders Saatlerinde Çıkacaksınız?", list(range(1, 10)))
             if st.button("Talebi Gönder"):
-                # Aynı tarih için mükerrer kontrolü
                 zaten_var = any(t['no'] == u_id and t['tarih'] == formatli_tarih_ogrenci for t in st.session_state.db_talepler)
-                
                 if zaten_var:
                     st.warning(f"⚠️ {formatli_tarih_ogrenci} tarihi için zaten bir talebiniz bulunuyor.")
                 elif not secili_nolar:
                     st.error("Lütfen ders saati seçin.")
                 else:
-                    # Ders isimlerini çekme
                     d_adlari = [u_data["program"][secili_gun_ismi][n-1] for n in secili_nolar]
                     st.session_state.db_talepler.append({
                         "isim": u_data["ad"], "no": u_id, "sinif": u_data["sinif"],
                         "gun": secili_gun_ismi, "ders_nolar": secili_nolar, "ders_adlari": d_adlari,
                         "durum": "Bekliyor", "tarih": formatli_tarih_ogrenci
                     })
-                    st.success(f"{formatli_tarih_ogrenci} ({secili_gun_ismi}) günü için talebiniz iletildi.")
+                    st.success(f"{formatli_tarih_ogrenci} günü için talebiniz iletildi.")
 
     # --- AYŞE HOCA PANELİ ---
     elif u_data["role"] == "Ayşe Hoca":
@@ -145,7 +140,7 @@ else:
         secili_tarih_hoca = st.date_input("Görüntülenecek Tarih:", datetime.now())
         formatli_tarih_hoca = secili_tarih_hoca.strftime("%d/%m/%Y")
         
-        tab_onay, tab_arsiv = st.tabs(["📥 Bekleyen Talepler", "📜 Onaylı Liste & WhatsApp"])
+        tab_onay, tab_arsiv, tab_ogrenci_listesi = st.tabs(["📥 Bekleyen Talepler", "📜 Onaylı Liste & WhatsApp", "👥 Öğrenci Yönetimi"])
         
         with tab_onay:
             bekleyenler = [t for t in st.session_state.db_talepler if t["durum"] == "Bekliyor" and t["tarih"] == formatli_tarih_hoca]
@@ -154,56 +149,62 @@ else:
                     for t in st.session_state.db_talepler:
                         if t["durum"] == "Bekliyor" and t["tarih"] == formatli_tarih_hoca:
                             t["durum"] = "Onaylandı"
-                    st.success("Seçili tarihteki tüm talepler onaylandı!")
+                    st.success("Talepler onaylandı!")
                     st.rerun()
                 
                 st.divider()
                 for idx, talep in enumerate(st.session_state.db_talepler):
                     if talep["durum"] == "Bekliyor" and talep["tarih"] == formatli_tarih_hoca:
                         c1, c2, c3 = st.columns([3, 1, 1])
-                        # DERS İSİMLERİ BURAYA EKLENDİ
+                        # DÜZELTİLEN KISIM: Ders numarası ve adı yan yana yazıldı.
                         ders_ozeti = ", ".join([f"{n}. Ders ({ad})" for n, ad in zip(talep['ders_nolar'], talep['ders_adlari'])])
                         c1.markdown(f"**{talep['isim']} ({talep['sinif']})**")
                         c1.caption(f"Dersler: {ders_ozeti}")
-                        
                         if c2.button("✅ Onayla", key=f"app_{idx}"):
                             talep["durum"] = "Onaylandı"
                             st.rerun()
                         if c3.button("❌ Reddet", key=f"rej_{idx}"):
                             talep["durum"] = "Reddedildi"
                             st.rerun()
-                        st.divider()
             else:
-                st.info(f"{formatli_tarih_hoca} tarihi için bekleyen talep bulunmuyor.")
+                st.info(f"{formatli_tarih_hoca} için bekleyen talep yok.")
 
         with tab_arsiv:
             onaylilar = [t for t in st.session_state.db_talepler if t["durum"] == "Onaylandı" and t["tarih"] == formatli_tarih_hoca]
             if onaylilar:
                 for t in onaylilar:
-                    ders_ozeti = ", ".join([f"{n}.Ders" for n in t['ders_nolar']])
-                    st.write(f"✅ {t['isim']} ({t['sinif']}) - {ders_ozeti}")
+                    st.write(f"✅ {t['isim']} ({t['sinif']}) - {t['ders_nolar']}. Dersler")
                 
                 st.divider()
                 metin = f"*ENKA Olimpiyat İzinli Listesi ({formatli_tarih_hoca})*\n\n"
                 for t in onaylilar:
                     metin += f"• {t['isim']} ({t['sinif']}) - Ders: {t['ders_nolar']}\n"
-                st.text_area("Kopyalanacak WhatsApp Metni:", metin, height=150)
+                st.text_area("WhatsApp Metni:", metin, height=150)
             else:
                 st.write("Bu tarihte onaylanmış kimse bulunmuyor.")
 
+        with tab_ogrenci_listesi:
+            st.subheader("Sistemdeki Kayıtlı Öğrenciler")
+            ogrenciler = {k: v for k, v in st.session_state.users.items() if v["role"] == "Öğrenci"}
+            for oid, oinfo in ogrenciler.items():
+                col1, col2 = st.columns([4, 1])
+                col1.write(f"👤 **{oinfo['ad']}** (No: {oid}) - {oinfo['sinif']}")
+                if col2.button("🗑️ Sil", key=f"del_user_{oid}"):
+                    del st.session_state.users[oid]
+                    st.warning(f"{oinfo['ad']} silindi.")
+                    st.rerun()
+
     # --- ÇAĞLA HANIM PANELİ ---
     elif u_data["role"] == "Çağla Hanım":
-        st.header("📝 Çağla Hanım - Devamsızlık İşleme")
+        st.header("📝 Çağla Hanım - Devamsızlık")
         secili_tarih_cagla = st.date_input("Tarih Seçin:", datetime.now())
         formatli_tarih_cagla = secili_tarih_cagla.strftime("%d/%m/%Y")
-        
         onaylilar = [t for t in st.session_state.db_talepler if t["durum"] == "Onaylandı" and t["tarih"] == formatli_tarih_cagla]
         if onaylilar:
             for t in onaylilar:
                 with st.expander(f"✅ {t['isim']} ({t['sinif']})"):
-                    st.write(f"**Okul No:** {t['no']}")
-                    st.write(f"**Ders Detayları:**")
+                    st.write(f"No: {t['no']}")
                     for n, ad in zip(t['ders_nolar'], t['ders_adlari']):
                         st.write(f"- {n}. Ders: {ad}")
         else:
-            st.info("Seçili tarih için onaylı kayıt bulunamadı.")
+            st.info("Kayıt bulunamadı.")
